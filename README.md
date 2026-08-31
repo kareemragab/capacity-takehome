@@ -1,10 +1,20 @@
 # The Capacity Problem
 
+> ## ⚠️ READ THIS FIRST: the transcript is part of the deliverable
+>
+> **You must hand in the transcript of your AI agent sessions.** Committed to
+> the repo, in `transcripts/`, linked from your README. See
+> [Hand in](#hand-in).
+>
+> **No transcript is a deal breaker.** Not a smaller score. We close the tab,
+> whatever the code looks like. This is the one rule with no judgement call in
+> it, and it is the most common way people fail this exercise.
+
 Build a small social app where the contact list has a hard ceiling. The features
 are simple. The rules underneath them are not — that's the exercise.
 
-**4 hours.** Use AI agents freely; we do. It ends with a 45-minute call where
-you demo it and make one live change.
+**4 hours.** Use AI agents freely; we do, and you hand in the transcript. It
+ends with a 45-minute call where you demo it and make one live change.
 
 Four hours will not comfortably fit everything below, and it isn't meant to.
 What you choose to build first, and what you consciously drop, is part of what
@@ -117,15 +127,45 @@ should need recompiling. On a physical device set
 
 ## Hand in
 
+Two things get handed in: **the code, and the transcript.** A repo with only the
+code is half a submission.
+
 Replace this README with your own. Keep run instructions, and add:
 
 - **Decisions** — 3 or 4 calls you made and what you rejected. We read this first.
 - **What's next, and what's unfinished.** Unfinished with a reason beats hand-waved.
+- **Your agent transcript.** Required. Details below.
 - **Where the agent got it wrong** — one thing your AI tooling got confidently
   wrong and how you caught it. Can't name one? We'll assume you didn't check.
 - Tests for the rules.
 
+### The agent transcript (required)
+
+Commit the full transcript of every AI session you used on this exercise, and
+link it from your README under a heading called **Agent transcript**.
+
+This is a deal breaker, not a preference. A submission without a transcript does
+not get read, does not get a call, and does not get feedback, no matter how good
+the code is. If you are unsure whether what you have counts, send it and ask.
+
+We are not checking whether you used an agent. We assume you did. We are reading
+*how*: what you asked for, what came back wrong, where you stopped and thought,
+what you threw away. That is the part of your work the finished code hides.
+
+- Put the files in `transcripts/` at the repo root. Raw text or markdown is fine.
+- Every tool has an export. Claude Code: `/export`, or the session files under
+  `~/.claude/projects/`. Cursor and Copilot: export the chat. ChatGPT and Claude
+  web: share link plus a pasted copy, because links rot.
+- Do not tidy it. Dead ends, bad prompts and reversals are the signal. A polished
+  transcript reads as a rewritten one.
+- Redact secrets and anything not yours. Nothing else.
+- Worked without an agent for part or all of it? Say that in the README and skip
+  the file for that part. Silence is what fails, not abstinence.
+
 ## The call — 45 minutes
+
+We read your transcript before this call, and some of the 20 minutes comes
+straight out of it. No transcript in the repo, no call.
 
 - **10 min** — you demo it, including one refusal.
 - **20 min** — two features in depth. Why this shape, what you rejected, where it
@@ -134,8 +174,16 @@ Replace this README with your own. Keep run instructions, and add:
 
 Graded on: the four rules holding (proven by a test), the rule living in one
 pure testable place, refusals reaching the user as a sentence, cutting the right
-scope and saying so, and — outweighing the rest — being able to change and
-explain your own code live.
+scope and saying so, how you drove the agent, and — outweighing the rest —
+being able to change and explain your own code live.
 
 Questions before you start are free. Ambiguity you resolved and wrote down beats
 a question you didn't ask.
+
+## Before you send it
+
+- [ ] `make check` is green on a fresh clone.
+- [ ] Tests prove the four rules.
+- [ ] README has Decisions, what's unfinished, and where the agent got it wrong.
+- [ ] **`transcripts/` exists, has your real sessions in it, and your README
+      links to it.** Check this one last. It is the one we get missing every time.
