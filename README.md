@@ -29,6 +29,9 @@ anyone. On a physical device set `EXPO_PUBLIC_API_URL=http://<your-lan-ip>:8080/
 
 Two things to know when running it:
 
+- `make check` installs the client's dependencies if they aren't there yet, so
+  it is green on a clone with nothing else run first. The scaffold's version
+  assumed `npm install` had already happened and failed on a fresh clone.
 - `make check` proves rule 4 against a real Mongo. If nothing is listening on
   :27117 the race test **skips and says so** rather than failing, so a fresh
   clone stays green before `make up`. Set `REQUIRE_MONGO=1` to make that skip a

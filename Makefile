@@ -20,6 +20,7 @@ generate:      ## regenerate gqlgen code after editing graph/schema.graphqls
 
 check:         ## what we run before looking at your submission
 	cd api && go build ./... && go vet ./... && go test ./...
+	@[ -d mobile/node_modules ] || (echo "installing mobile deps..." && cd mobile && npm ci)
 	cd mobile && npx tsc --noEmit
 
 smoke:         ## walk every mutation and print each refusal sentence (needs make api)
