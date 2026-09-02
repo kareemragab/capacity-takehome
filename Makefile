@@ -1,4 +1,4 @@
-.PHONY: up down api mobile generate check smoke clean
+.PHONY: up down api mobile generate check smoke demo clean
 
 up:            ## start mongo (single-node replica set, so transactions work)
 	docker compose up -d
@@ -25,6 +25,9 @@ check:         ## what we run before looking at your submission
 
 smoke:         ## walk every mutation and print each refusal sentence (needs make api)
 	python3 scripts/smoke.py
+
+demo:          ## put the seeded data in a known state for a demo (needs make api)
+	python3 scripts/demo.py
 
 clean:
 	docker compose down -v

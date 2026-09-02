@@ -21,6 +21,7 @@ make api       # graphql on :8080, seeds ten users on first boot
 make mobile    # expo — press i for the iOS simulator, w for web
 make check     # go build + vet + test, and tsc on the client
 make smoke     # walks every mutation against the running API and prints each refusal
+make demo      # puts the seeded data in a known state: 8 of 8, Pink empty, one request waiting
 ```
 
 Playground at <http://localhost:8080>. Authentication is the `X-User-Id`
@@ -134,7 +135,8 @@ assumed away.
 | Caps are config | `TestCapsAreEnv`, `TestCapsComeFromConfig` | `config_test.go`, `capacity_test.go` |
 
 `make smoke` walks the same story through the real API and prints every
-sentence, which is also the demo script.
+sentence. `make demo` sets the data to 8 of 8 with Pink empty and one request
+waiting, so the first click of a demo is rule 1 refusing an empty tier.
 
 ## Where the agent got it wrong
 
