@@ -10,38 +10,118 @@ import (
 	"fmt"
 
 	"github.com/tktaofik/capacity-takehome/api/graph/model"
+	"github.com/tktaofik/capacity-takehome/api/internal/capacity"
 	"github.com/tktaofik/capacity-takehome/api/internal/store"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // SendRequest is the resolver for the sendRequest field.
 func (r *mutationResolver) SendRequest(ctx context.Context, toUserID string, tier model.Tier) (*model.Request, error) {
-	panic(fmt.Errorf("not implemented: SendRequest - sendRequest"))
+	me, err := r.caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	to, err := parseID(toUserID, "user")
+	if err != nil {
+		return nil, err
+	}
+	req, err := r.Store.SendRequest(ctx, r.Caps, me, to, capacity.Tier(tier))
+	if err != nil {
+		return nil, r.explain(ctx, err, me, opSend)
+	}
+	user, err := r.people(ctx, req.FromID, req.ToID)
+	if err != nil {
+		return nil, r.explain(ctx, err, me, opSend)
+	}
+	out := toRequest(*req, user)
+	return &out, nil
 }
 
 // AcceptRequest is the resolver for the acceptRequest field.
 func (r *mutationResolver) AcceptRequest(ctx context.Context, requestID string) (*model.Contact, error) {
-	panic(fmt.Errorf("not implemented: AcceptRequest - acceptRequest"))
+	me, err := r.caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	id, err := parseID(requestID, "request")
+	if err != nil {
+		return nil, err
+	}
+	c, err := r.Store.AcceptRequest(ctx, r.Caps, me, id)
+	if err != nil {
+		return nil, r.explain(ctx, err, me, opAccept)
+	}
+	user, err := r.people(ctx, c.OtherID)
+	if err != nil {
+		return nil, r.explain(ctx, err, me, opAccept)
+	}
+	out := toContact(*c, user)
+	return &out, nil
 }
 
 // DeclineRequest is the resolver for the declineRequest field.
 func (r *mutationResolver) DeclineRequest(ctx context.Context, requestID string) (*model.Request, error) {
-	panic(fmt.Errorf("not implemented: DeclineRequest - declineRequest"))
+	me, err := r.caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	id, err := parseID(requestID, "request")
+	if err != nil {
+		return nil, err
+	}
+	req, err := r.Store.DeclineRequest(ctx, me, id)
+	if err != nil {
+		return nil, r.explain(ctx, err, me, opDecline)
+	}
+	user, err := r.people(ctx, req.FromID, req.ToID)
+	if err != nil {
+		return nil, r.explain(ctx, err, me, opDecline)
+	}
+	out := toRequest(*req, user)
+	return &out, nil
 }
 
 // MoveContact is the resolver for the moveContact field.
 func (r *mutationResolver) MoveContact(ctx context.Context, contactID string, tier model.Tier) (*model.Contact, error) {
-	panic(fmt.Errorf("not implemented: MoveContact - moveContact"))
+	me, err := r.caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	id, err := parseID(contactID, "contact")
+	if err != nil {
+		return nil, err
+	}
+	c, err := r.Store.MoveContact(ctx, r.Caps, me, id, capacity.Tier(tier))
+	if err != nil {
+		return nil, r.explain(ctx, err, me, opMove)
+	}
+	user, err := r.people(ctx, c.OtherID)
+	if err != nil {
+		return nil, r.explain(ctx, err, me, opMove)
+	}
+	out := toContact(*c, user)
+	return &out, nil
 }
 
 // RemoveContact is the resolver for the removeContact field.
 func (r *mutationResolver) RemoveContact(ctx context.Context, contactID string) (bool, error) {
-	panic(fmt.Errorf("not implemented: RemoveContact - removeContact"))
+	me, err := r.caller(ctx)
+	if err != nil {
+		return false, err
+	}
+	id, err := parseID(contactID, "contact")
+	if err != nil {
+		return false, err
+	}
+	if err := r.Store.RemoveContact(ctx, me, id); err != nil {
+		return false, r.explain(ctx, err, me, opRemove)
+	}
+	return true, nil
 }
 
 // Me is the resolver for the me field.
 func (r *queryResolver) Me(ctx context.Context) (*model.User, error) {
-	id, err := store.CallerID(ctx)
+	id, err := r.caller(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -72,22 +152,70 @@ func (r *queryResolver) Users(ctx context.Context) ([]model.User, error) {
 
 // Contacts is the resolver for the contacts field.
 func (r *queryResolver) Contacts(ctx context.Context) ([]model.Contact, error) {
-	panic(fmt.Errorf("not implemented: Contacts - contacts"))
+	me, err := r.caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	docs, err := r.Store.ContactsFor(ctx, me)
+	if err != nil {
+		return nil, fmt.Errorf("contacts: %w", err)
+	}
+	ids := make([]bson.ObjectID, 0, len(docs))
+	for _, c := range docs {
+		ids = append(ids, c.OtherID)
+	}
+	user, err := r.people(ctx, ids...)
+	if err != nil {
+		return nil, fmt.Errorf("contacts: %w", err)
+	}
+	out := make([]model.Contact, 0, len(docs))
+	for _, c := range docs {
+		out = append(out, toContact(c, user))
+	}
+	return out, nil
 }
 
 // Capacity is the resolver for the capacity field.
 func (r *queryResolver) Capacity(ctx context.Context) (*model.Capacity, error) {
-	panic(fmt.Errorf("not implemented: Capacity - capacity"))
+	me, err := r.caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	have, err := r.Store.CountsFor(ctx, me)
+	if err != nil {
+		return nil, fmt.Errorf("capacity: %w", err)
+	}
+	out := &model.Capacity{BudgetUsed: have.Total(), BudgetCap: r.Caps.Budget}
+	for _, t := range capacity.Tiers() {
+		out.Tiers = append(out.Tiers, model.TierCapacity{Tier: model.Tier(t), Used: have[t], Cap: r.Caps.PerTier[t]})
+	}
+	return out, nil
 }
 
 // IncomingRequests is the resolver for the incomingRequests field.
 func (r *queryResolver) IncomingRequests(ctx context.Context) ([]model.Request, error) {
-	panic(fmt.Errorf("not implemented: IncomingRequests - incomingRequests"))
+	me, err := r.caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	docs, err := r.Store.PendingRequestsTo(ctx, me)
+	if err != nil {
+		return nil, fmt.Errorf("incoming: %w", err)
+	}
+	return r.requests(ctx, docs)
 }
 
 // OutgoingRequests is the resolver for the outgoingRequests field.
 func (r *queryResolver) OutgoingRequests(ctx context.Context) ([]model.Request, error) {
-	panic(fmt.Errorf("not implemented: OutgoingRequests - outgoingRequests"))
+	me, err := r.caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	docs, err := r.Store.RequestsFrom(ctx, me)
+	if err != nil {
+		return nil, fmt.Errorf("outgoing: %w", err)
+	}
+	return r.requests(ctx, docs)
 }
 
 // Mutation returns MutationResolver implementation.

@@ -32,7 +32,7 @@ func main() {
 	}))
 
 	http.Handle("/", playground.Handler("capacity", "/query"))
-	http.Handle("/query", callerFromHeader(srv))
+	http.Handle("/query", cors(callerFromHeader(srv)))
 
 	port := config.Port()
 	log.Printf("playground  http://localhost:%s", port)
@@ -48,6 +48,22 @@ func callerFromHeader(next http.Handler) http.Handler {
 			if id, err := bson.ObjectIDFromHex(raw); err == nil {
 				r = r.WithContext(store.WithUser(r.Context(), id))
 			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// cors lets the Expo web client (a different origin on :8081) call the API
+// from a browser. The simulator and a device never preflight; browsers do.
+// Auth is a header, so it is listed. Anything goes: there is nothing to protect.
+func cors(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-User-Id")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
 		}
 		next.ServeHTTP(w, r)
 	})
