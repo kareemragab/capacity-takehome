@@ -37,6 +37,8 @@ Two things to know when running it:
   and `react-dom` in `mobile/package.json`, and CORS on `/query`. Both are in.
   If :8081 is busy, `npx expo start --web --port 8082` works too.
 
+<p align="center"><img src="docs/people.png" width="360" alt="People screen: shared budget 8 of 8, contacts by tier with live used / cap"></p>
+
 ## What's built, what's not
 
 | | | |
