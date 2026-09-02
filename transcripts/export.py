@@ -21,6 +21,9 @@ def redact(text: str) -> str:
     text = EMAIL_RE.sub("[redacted: email]\n", text)
     for frag in ("kareemragab334", "krhassan334", "kareemragab33@"):
         text = text.replace(frag, "[redacted]")
+    # Another client's project path, surfaced by an Expo port clash. Not mine to publish.
+    text = re.sub(r"/Users/[A-Za-z0-9._-]+/Desktop/Gayar[^\s\"']*", "[redacted: another client's project path]", text)
+    text = text.replace("running Gayar in another window", "running another project in another window")
     return text
 
 def deep_redact(x):

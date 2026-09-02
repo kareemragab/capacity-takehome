@@ -21,8 +21,11 @@ Two things inside that range are redacted or cut, and nothing else:
   me (rates, contact emails, working preferences) into the first message of a
   context window. That block is replaced with a one-line marker. It is personal
   and has nothing to do with the exercise.
-- **Session lines 5621–5673.** A short exchange about the interview format,
-  not the code. Marked with a `[cut]` line in `session.md` where it happened.
+- **Session lines 5621–5673.** An exchange about the interview format and about
+  my rates and terms as a freelancer. None of it is about the exercise. Marked
+  with a `[cut]` line in `session.md` at the point where it happened.
+- **One filesystem path** belonging to another client's project, which showed
+  up because their dev server was holding the port Expo wanted.
 
 Nothing was reordered, shortened, or cleaned up. The wrong click on a section
 title while testing the web UI, the CORS miss, the port clash with another Expo
