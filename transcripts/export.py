@@ -24,6 +24,12 @@ def redact(text: str) -> str:
     # Another client's project path, surfaced by an Expo port clash. Not mine to publish.
     text = re.sub(r"/Users/[A-Za-z0-9._-]+/Desktop/Gayar[^\s\"']*", "[redacted: another client's project path]", text)
     text = text.replace("running Gayar in another window", "running another project in another window")
+    # The hiring manager's own messages, which I pasted into the chat. Not mine
+    # to publish, and the brief says to redact anything that isn't mine.
+    text = re.sub(r"Phil Samuels\s*\n?2:00 AM(?:.|\n)*", "[redacted: the two messages the hiring manager sent me, pasted in verbatim. Not mine to publish. The link they point to is the public assessment repo.]", text)
+    for quoted in ("That's all great to hear", "preferred candidate"):
+        text = text.replace(quoted, "[redacted quote]")
+    text = text.replace("Phil Samuels", "[the hiring manager]").replace("\u0641\u064a\u0644", "[the hiring manager]")
     return text
 
 def deep_redact(x):

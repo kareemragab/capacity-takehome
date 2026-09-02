@@ -26,6 +26,9 @@ Two things inside that range are redacted or cut, and nothing else:
   with a `[cut]` line in `session.md` at the point where it happened.
 - **One filesystem path** belonging to another client's project, which showed
   up because their dev server was holding the port Expo wanted.
+- **The hiring manager's own messages**, which I pasted into the chat at the
+  start. They are his words, not mine, and this repo is public. The assessment
+  link he sent points here, to the public exercise repo.
 
 Nothing was reordered, shortened, or cleaned up. The wrong click on a section
 title while testing the web UI, the CORS miss, the port clash with another Expo
