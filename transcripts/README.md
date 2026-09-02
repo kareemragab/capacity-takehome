@@ -8,6 +8,10 @@ same thing:
 - `session.jsonl` — the raw session file Claude Code keeps under
   `~/.claude/projects/`, same lines, for anyone who wants the source.
 
+The transcript starts at the message where I pasted the assessment link and
+ends where the exercise was finished and committed. What came after it in my
+session was about how to hand the work in, not about the code.
+
 ## What was left out, and why
 
 The session did not start with this exercise. It was an open Claude Code

@@ -12,6 +12,9 @@ START = int(sys.argv[2])
 DRY = len(sys.argv) > 3 and sys.argv[3] == '--dry'
 # (first, last) line ranges left out: messages about interview logistics, not the exercise.
 SKIP = [(5621, 5673)]
+# The exercise was finished and committed at this point; everything after it in
+# my session was about how to hand it in, not about the code.
+END = 6125
 
 MEM_RE = re.compile(r"Contents of /Users/kareemhassan/\.claude/projects/[^\n]*memory/MEMORY\.md[^\n]*\n(?:.*\n)*?(?=# userEmail)", re.M)
 EMAIL_RE = re.compile(r"The user's email address is [^\n]*\n")
@@ -27,7 +30,7 @@ def redact(text: str) -> str:
     # The hiring manager's own messages, which I pasted into the chat. Not mine
     # to publish, and the brief says to redact anything that isn't mine.
     text = re.sub(r"Phil Samuels\s*\n?2:00 AM(?:.|\n)*", "[redacted: the two messages the hiring manager sent me, pasted in verbatim. Not mine to publish. The link they point to is the public assessment repo.]", text)
-    for quoted in ("That's all great to hear", "preferred candidate"):
+    for quoted in ("That's all great to hear", "That's all great", "preferred candidate"):
         text = text.replace(quoted, "[redacted quote]")
     text = text.replace("Phil Samuels", "[the hiring manager]").replace("\u0641\u064a\u0644", "[the hiring manager]")
     return text
@@ -60,6 +63,8 @@ with open(SRC) as f:
     for i, line in enumerate(f):
         if i < START:
             continue
+        if i > END:
+            break
         if any(a <= i <= b for a, b in SKIP):
             continue
         o = json.loads(line)
@@ -104,9 +109,9 @@ for i, line, o in entries:
                 continue
             t = p.get('type')
             if t == 'text' and p.get('text', '').strip():
-                md.append(f"\n**Assistant** `{ts}`\n\n{p['text']}\n")
+                md.append(f"\n**Assistant** `{ts}`\n\n{redact(p['text'])}\n")
             elif t == 'thinking' and p.get('thinking', '').strip():
-                md.append(f"\n<details><summary><i>Assistant thinking</i> <code>{ts}</code></summary>\n\n{p['thinking']}\n\n</details>\n")
+                md.append(f"\n<details><summary><i>Assistant thinking</i> <code>{ts}</code></summary>\n\n{redact(p['thinking'])}\n\n</details>\n")
             elif t == 'tool_use':
                 inp = redact(json.dumps(p.get('input', {}), ensure_ascii=False, indent=2))
                 md.append(f"\n**Tool call** `{p.get('name')}` `{ts}`\n\n```json\n{inp}\n```\n")
