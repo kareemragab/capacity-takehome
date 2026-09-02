@@ -1,25 +1,15 @@
 # The Capacity Problem
 
-> ## ⚠️ READ THIS FIRST: the transcript is part of the deliverable
->
-> **You must hand in the transcript of your AI agent sessions.** Committed to
-> the repo, in `transcripts/`, linked from your README. See
-> [Hand in](#hand-in).
->
-> **No transcript is a deal breaker.** Not a smaller score. We close the tab,
-> whatever the code looks like. This is the one rule with no judgement call in
-> it, and it is the most common way people fail this exercise.
+A small social app where the contact list has a hard ceiling: three tiers with
+their own caps, one shared budget that binds first, and four rules underneath
+that are the actual exercise. This is my submission.
 
-Build a small social app where the contact list has a hard ceiling. The features
-are simple. The rules underneath them are not — that's the exercise.
-
-**4 hours.** Use AI agents freely; we do, and you hand in the transcript. It
-ends with a 45-minute call where you demo it and make one live change.
-
-Four hours will not comfortably fit everything below, and it isn't meant to.
-What you choose to build first, and what you consciously drop, is part of what
-we're reading. R1–R6 is the core; R7 and R8 exist for the unlikely case you're
-early. Say in your README what you left and why.
+- **Agent transcript:** [`transcripts/`](transcripts/) — the full session, see
+  [Agent transcript](#agent-transcript) below.
+- **Rules:** [`api/internal/capacity/capacity.go`](api/internal/capacity/capacity.go)
+  — the only place a seat decision is made.
+- **Rule 4 (the race):** [`api/internal/store/seats.go`](api/internal/store/seats.go)
+  and the test in [`api/internal/store/race_test.go`](api/internal/store/race_test.go).
 
 ## Run it
 
@@ -29,161 +19,167 @@ Needs Go 1.25+, Node 20+, Docker.
 make up        # mongo on :27117 (replica set, so transactions work)
 make api       # graphql on :8080, seeds ten users on first boot
 make mobile    # expo — press i for the iOS simulator, w for web
-make check     # go build + vet + test, and tsc on the client. green on clone
+make check     # go build + vet + test, and tsc on the client
+make smoke     # walks every mutation against the running API and prints each refusal
 ```
 
-Playground at <http://localhost:8080>. Confirm it's alive:
+Playground at <http://localhost:8080>. Authentication is the `X-User-Id`
+header, on purpose; the app has a user switcher at the top so you can act as
+anyone. On a physical device set `EXPO_PUBLIC_API_URL=http://<your-lan-ip>:8080/query`.
 
-```bash
-curl -s localhost:8080/query -H 'Content-Type: application/json' \
-  -d '{"query":"{ users { id name } }"}'
-```
+Two things to know when running it:
 
-Copy any `id` and send it as the `X-User-Id` header. That's the whole
-authentication story and it's intentionally fake.
+- `make check` proves rule 4 against a real Mongo. If nothing is listening on
+  :27117 the race test **skips and says so** rather than failing, so a fresh
+  clone stays green before `make up`. Set `REQUIRE_MONGO=1` to make that skip a
+  failure (what CI should do).
+- The web client needs two things the scaffold didn't have: `react-native-web`
+  and `react-dom` in `mobile/package.json`, and CORS on `/query`. Both are in.
+  If :8081 is busy, `npx expo start --web --port 8082` works too.
 
-## Stack
-
-| | |
-|---|---|
-| API | Go 1.25 · GraphQL (gqlgen) · MongoDB 8 |
-| Client | Expo SDK 57 · React Native · TypeScript |
-| Local | Docker |
-
-Never written Go or shipped an Expo app? Not a disqualifier — getting productive
-in an unfamiliar stack inside a day is part of what we're measuring. If mobile
-genuinely blocks you, a web client is fine; say so.
-
-## Tiers
-
-| Tier | Cap |
-|---|---|
-| Pink flag | 1 |
-| Blue flag | 3 |
-| Green flag | 5 |
-| **Shared budget** | **8** |
-
-Sub-caps sum to 9. The budget is 8. That gap is deliberate.
-
-## Build
+## What's built, what's not
 
 | | | |
 |---|---|---|
-| **R1** | Send a request to a named tier. | core |
-| **R2** | Accept / decline. Accept creates the contact on both sides. | core |
-| **R3** | Move a contact between tiers. | core |
-| **R4** | Remove a contact. Frees the seat on both sides. | core |
-| **R5** | People screen: contacts by tier, live `used / cap`, budget visible. | core |
-| **R6** | Request inbox. A failed accept says *why*, in plain words. | core |
-| **R7** | Posts scoped to a tier and everything closer. | stretch |
-| **R8** | Optimistic accept with rollback. | stretch |
+| R1 | Send a request to a named tier | done |
+| R2 | Accept / decline, contact on both sides | done |
+| R3 | Move a contact between tiers | done |
+| R4 | Remove a contact, seat freed on both sides | done |
+| R5 | People screen, contacts by tier, live `used / cap`, budget visible | done |
+| R6 | Inbox; a failed accept says why, in a sentence, under the button | done |
+| R7 | Posts scoped to a tier and closer | **not started** |
+| R8 | Optimistic accept with rollback | **not started** |
 
-**Out of scope, don't spend time here:** auth, signup, profiles, search, push,
-deployment, visual polish.
+R7 and R8 were dropped deliberately. R7 is a second feature with its own
+visibility rule (a post filed at Blue is readable by Pink and Blue), and doing
+it properly means a `posts` collection, a query with the tier ordering baked in,
+and a screen; it wouldn't fit next to getting rule 4 right. R8 I'd rather not
+ship half-done: an optimistic accept that flashes a contact into a tier and then
+yanks it back is worse UX than a spinner, unless the rollback is airtight. The
+server already sends `extensions.code = CAPACITY_FULL` with `side`, `reason`,
+`tier`, `used` and `cap` on every refusal, which is exactly what a rollback
+would branch on, so the groundwork is there.
 
-## The four rules
+## Decisions
 
-Most of the grade is here, not in the screens.
+**1. The rule is a pure function that returns numbers, and the sentence is
+written one layer up.** `capacity.CanSend / CanAdd / CanMove` take the caps and
+a count snapshot and return a `*Refusal{Reason, Tier, Used, Cap}` that still
+matches `errors.Is(err, ErrBudgetFull)`. The GraphQL layer (`graph/present.go`)
+turns that into "Ada can't take this right now: Ada's Blue is full (3 of 3)".
+I rejected two alternatives: writing the sentence inside `capacity` (it would
+need names, which means IO, which breaks the "pure" promise), and encoding the
+check in Mongo query filters like `{budgetUsed: {$lt: 8}}` (correct, but then
+the rule lives in two places and the second one can't be unit tested).
 
-**1. Budget before sub-cap.** 3 Blue + 5 Green is 8 of 8. That person cannot add
-a Pink flag, even though Pink is empty. The sum is checked first.
+**2. Rule 4 is solved by making concurrent accepts collide on a write, not by
+checking harder.** Every seat-changing operation runs in one Mongo transaction
+that starts by `$inc`-ing a `seatVersion` field on each user involved
+(`touchSeats`). Two transactions writing the same document conflict; Mongo
+aborts the second with a transient error, `WithTransaction` re-runs it, and on
+the re-run its snapshot includes the winner's commit, so `CountsFor` returns
+8 of 8 and `capacity.CanAdd` refuses it with the real reason. The loser gets
+"your contact list is full", never a conflict error. What I rejected: a
+per-user counter document with a conditional update (puts the rule in the
+filter, see decision 1); a unique index on `(ownerId, seatNo)` with seat
+numbers (removing a contact leaves holes you then have to reuse); and, most
+importantly, a **plain transaction with a count inside it**, which reads as
+safe and isn't — see [where the agent got it wrong](#where-the-agent-got-it-wrong).
 
-**2. A pending request holds no seat.** Sending creates no contact. One free
-seat buys unlimited outstanding requests. Capacity is checked at **accept**,
-against **both** people — either side being full fails it.
+**3. An accept files both people in the request's tier.** The schema's
+`acceptRequest(requestId)` takes no tier, and I kept it that way: the sender
+picked a tier, the receiver lands them in the same one and re-files with
+`moveContact` if they want to, which rule 3 makes cheap (sub-cap only). That
+means the accept checks the *request's* tier on both sides. The alternative,
+adding a `tier` argument to `acceptRequest`, would have been a schema change
+plus a tier picker on every inbox row; not worth it for v1, and easy to add
+later without touching the rule.
 
-**3. Re-filing is not adding.** Moving Green → Blue checks the destination
-sub-cap only, never the budget. The contact is already inside the budget; a
-budget check here blocks a legal move.
+**4. A refused accept leaves the request pending.** When an accept fails on
+capacity, nothing changes: the request stays in the inbox and the sentence
+tells the user what to free up. Auto-declining would punish the sender for the
+receiver's full list. The inbox therefore has one deliberate quirk: a request
+you can't take yet keeps sitting there with its reason, until you make room or
+decline it yourself.
 
-**4. Two people can want the last seat.** Concurrent accepts on one free seat:
-exactly one wins, the other fails cleanly. Read-then-write is not an answer.
+**5. The client uses the raw `fetch` wrapper the scaffold shipped, and refetches
+after every mutation.** No Apollo, no Relay. The screens are three queries and
+five mutations; the graded thing on the client is that the server's sentence
+reaches the user untouched, next to the button that was pressed, and `used /
+cap` on screen is always what the server just counted. A normalized cache
+would have been a second place for the counts to be wrong. If R8 were in
+scope, this is the decision I'd revisit.
 
-Also: `used` may legally exceed `cap` (a lowered cap, a merge). Fail closed,
-don't panic. And caps are config, not constants — already done for you in
-`api/internal/config`. Don't undo it.
+Smaller ones: one pending request per direction is enforced by a partial
+unique index, not a lookup, so a double-tap can't create two; the reverse
+direction is refused with "they already sent you one, accept it instead";
+tiers are private to each owner, so my move never touches the other side;
+`used > cap` renders in red with "over" and is refused on the next add, never
+assumed away.
 
-## Where to start
+## The four rules, and where each is proven
 
-`api/internal/capacity/capacity.go` — three functions returning
-`errNotImplemented`, and a test file with five `t.Skip`ed tests named after the
-rules they should prove. Delete a Skip, write the test, make it pass. Rule 4
-needs a real database, so its stub is in `api/internal/store/race_test.go`.
+| Rule | Test | Where |
+|---|---|---|
+| 1. Budget before sub-cap | `TestBudgetBindsBeforeSubCap`, `TestTierFullWithBudgetRemaining` | `capacity_test.go` |
+| 2. A pending request holds no seat; both sides checked at accept | `TestSendChecksBudgetOnly` (pure), `TestPendingRequestsHoldNoSeat`, `TestAcceptChecksBothSides` (Mongo) | `capacity_test.go`, `race_test.go` |
+| 3. Re-filing is not adding | `TestMoveIgnoresBudget` (pure), `TestMoveIsNotAdd` (Mongo, over-budget user) | same |
+| 4. Two people can want the last seat | `TestConcurrentAcceptsTakeOneSeat`: six accepts released at once on one free seat, three rounds, under `-race`; exactly one wins, the losers get `ErrBudgetFull`, the target holds 8, never 9 | `race_test.go` |
+| used may exceed cap | `TestOverBudgetIsHandled` | `capacity_test.go` |
+| Caps are config | `TestCapsAreEnv`, `TestCapsComeFromConfig` | `config_test.go`, `capacity_test.go` |
 
-Then work outwards: resolvers in `api/graph/schema.resolvers.go` (`me` and
-`users` work, the rest panic), screens in `mobile/`.
+`make smoke` walks the same story through the real API and prints every
+sentence, which is also the demo script.
 
-```
-api/graph/schema.graphqls      the API surface. edit it, then `make generate`
-api/internal/capacity/         THE GRADED SURFACE. pure rules, no IO
-api/internal/store/            mongo: documents, connection, indexes, seed
-mobile/App.tsx                 a user switcher, so you can act as anyone. replace it
-```
+## Where the agent got it wrong
 
-Worth knowing: Mongo is on **27117**, not 27017, so it can't collide with one
-you already run. Caps are env vars — try `CAP_GREEN=500 make api`, nothing
-should need recompiling. On a physical device set
-`EXPO_PUBLIC_API_URL=http://<your-lan-ip>:8080/query`.
+**"The replica set is there so transactions work; use a transaction."** That is
+how the agent summarised the concurrency requirement when I first asked it
+what the brief wanted, and it's wrong in the way the brief warns about. A
+Mongo transaction gives you a snapshot, but two transactions that each read
+"7 of 8", then insert *different* contact documents, do not conflict with each
+other; both commit. I proved it rather than trusting the explanation: with the
+`touchSeats` call removed and everything else identical (transaction, snapshot
+read concern, count inside the transaction), the race test fails with **six
+winners out of six** on a user with one free seat, three runs out of three.
+With the touch back, one winner, five clean refusals, every time. The
+transaction is necessary; the colliding write is what makes it correct.
 
-## Hand in
+Smaller one: the agent declared the web client done when `tsc` was green. It
+wasn't usable: the browser blocked the cross-origin call to :8080 with "Failed
+to fetch". `go test` and `tsc` were both green the whole time. It took opening
+the page to see it, which is why CORS is in `main.go` now.
 
-Two things get handed in: **the code, and the transcript.** A repo with only the
-code is half a submission.
+## What's next
 
-Replace this README with your own. Keep run instructions, and add:
+- **R7**, posts scoped to a tier and everything closer. Shape: `posts{authorId,
+  tier, body}`, a `feed` query that resolves the caller's tier for each author
+  and keeps posts whose tier is at or below it in `capacity.Tiers()` order. The
+  ordering already exists in the capacity package; the visibility rule would go
+  next to it, pure and tested the same way.
+- **R8**, optimistic accept. Insert the contact locally, roll back on
+  `CAPACITY_FULL`, and show the server's sentence. The refetch-after-mutation
+  hook in `mobile/src/hooks.ts` is where that would start.
+- A resolver-level test for the sentences. Today they're exercised by
+  `make smoke`, by hand, not by `go test`.
+- Request expiry, so a pending request refused for months doesn't sit in an
+  inbox forever. Not needed at this size.
+- Auth, profiles, search, push, deployment, polish: out of scope by the brief,
+  and untouched.
 
-- **Decisions** — 3 or 4 calls you made and what you rejected. We read this first.
-- **What's next, and what's unfinished.** Unfinished with a reason beats hand-waved.
-- **Your agent transcript.** Required. Details below.
-- **Where the agent got it wrong** — one thing your AI tooling got confidently
-  wrong and how you caught it. Can't name one? We'll assume you didn't check.
-- Tests for the rules.
+## Agent transcript
 
-### The agent transcript (required)
+Everything in this repo was built with Claude Code in a single session, and
+the full transcript is in [`transcripts/`](transcripts/):
 
-Commit the full transcript of every AI session you used on this exercise, and
-link it from your README under a heading called **Agent transcript**.
-
-This is a deal breaker, not a preference. A submission without a transcript does
-not get read, does not get a call, and does not get feedback, no matter how good
-the code is. If you are unsure whether what you have counts, send it and ask.
-
-We are not checking whether you used an agent. We assume you did. We are reading
-*how*: what you asked for, what came back wrong, where you stopped and thought,
-what you threw away. That is the part of your work the finished code hides.
-
-- Put the files in `transcripts/` at the repo root. Raw text or markdown is fine.
-- Every tool has an export. Claude Code: `/export`, or the session files under
-  `~/.claude/projects/`. Cursor and Copilot: export the chat. ChatGPT and Claude
-  web: share link plus a pasted copy, because links rot.
-- Do not tidy it. Dead ends, bad prompts and reversals are the signal. A polished
-  transcript reads as a rewritten one.
-- Redact secrets and anything not yours. Nothing else.
-- Worked without an agent for part or all of it? Say that in the README and skip
-  the file for that part. Silence is what fails, not abstinence.
-
-## The call — 45 minutes
-
-We read your transcript before this call, and some of the 20 minutes comes
-straight out of it. No transcript in the repo, no call.
-
-- **10 min** — you demo it, including one refusal.
-- **20 min** — two features in depth. Why this shape, what you rejected, where it
-  breaks first.
-- **15 min** — one live change to your own code, on the call, with your normal tools.
-
-Graded on: the four rules holding (proven by a test), the rule living in one
-pure testable place, refusals reaching the user as a sentence, cutting the right
-scope and saying so, how you drove the agent, and — outweighing the rest —
-being able to change and explain your own code live.
-
-Questions before you start are free. Ambiguity you resolved and wrote down beats
-a question you didn't ask.
-
-## Before you send it
-
-- [ ] `make check` is green on a fresh clone.
-- [ ] Tests prove the four rules.
-- [ ] README has Decisions, what's unfinished, and where the agent got it wrong.
-- [ ] **`transcripts/` exists, has your real sessions in it, and your README
-      links to it.** Check this one last. It is the one we get missing every time.
+- [`transcripts/session.md`](transcripts/session.md) — the session, rendered
+  as readable markdown: every human message, every agent message, every
+  command the agent ran and what came back. Untidied: the dead ends are in
+  there, including the wrong click on a section title while testing the web
+  UI and the CORS miss above.
+- [`transcripts/session.jsonl`](transcripts/session.jsonl) — the raw Claude
+  Code session file, same content, for anyone who prefers the source.
+- [`transcripts/README.md`](transcripts/README.md) — what was cut from the
+  export and why (the session started as an unrelated client-work session,
+  and those earlier messages are not mine to share), plus a one-line English
+  gloss of each of my messages, which are in Arabic.

@@ -1,4 +1,4 @@
-.PHONY: up down api mobile generate check clean
+.PHONY: up down api mobile generate check smoke clean
 
 up:            ## start mongo (single-node replica set, so transactions work)
 	docker compose up -d
@@ -21,6 +21,9 @@ generate:      ## regenerate gqlgen code after editing graph/schema.graphqls
 check:         ## what we run before looking at your submission
 	cd api && go build ./... && go vet ./... && go test ./...
 	cd mobile && npx tsc --noEmit
+
+smoke:         ## walk every mutation and print each refusal sentence (needs make api)
+	python3 scripts/smoke.py
 
 clean:
 	docker compose down -v
